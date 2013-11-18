@@ -1,0 +1,189 @@
+<!doctype html>
+<html>
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>simpledi.sh</title>
+<link href='http://fonts.googleapis.com/css?family=PT+Sans' rel='stylesheet' type='text/css'/>
+<script src="http://ajax.googleapis.com/ajax/libs/jquery/1.10.2/jquery.min.js"></script>
+<script type="text/javascript">
+/**
+ * document ready
+ */
+$(document).ready(function(){
+    // list checkbox items
+    var inventory = [ "eggs", "yogurt", "avocado", "kale", "onion", "carrots", "tomatoes", "cucumber", "lime", "apples" ].sort();
+    var ul = $('#searchform ul.list')[0];
+    $(ul).empty();
+    $.each( inventory, function( index, value){
+        $(ul).append('<li><input type="checkbox" id="i_'+value+'" name="allowedIngredient[]" value="'+value+'"/><label for="i_'+value+'"/>'+value+'</label><br/><img src="images/'+value+'.jpg"></li>');
+    });
+    // form action handler
+    $('#searchform').submit(function(e){
+        var postData = $(this).serializeArray();
+        // validate ingredients
+        if(!validIngredients(postData)){
+            alert("Please select at least one ingredient");
+            return false;
+        }
+        // process ingredients
+        var ingredients = [];
+        for(var i=0; i<postData.length; i++){
+            if(postData[i].name == "q"){
+                ingredients = parseIngredients(postData[i].value);
+                break;
+            }
+        }
+        if(ingredients.length > 0){
+            postData.splice(i, 1);  // remove 'q' element
+            $.merge(postData, ingredients);  // add 'allowedIngredient[]' elements
+        }
+        // ajax call
+        $.ajax(
+        {
+            url : "http://api.yummly.com/v1/api/recipes",
+            type: "GET",
+            data : postData,
+            contentType: "jsonp",
+            dataType: "jsonp",
+            jsonp: "callback",
+            success:function(json)
+            {
+                //console.log(json);
+                render(json);
+            }
+        });
+        e.preventDefault(); //STOP default action
+    });
+});
+
+/**
+ * validate number of ingredients
+ */
+function validIngredients(arr){
+    for(var i=0; i<arr.length; i++){
+        if(arr[i].name == "allowedIngredient[]"){
+            return true;
+        }
+    }
+    return false;
+}
+
+/**
+ * parse ingredients
+ */
+function parseIngredients(str){
+    var params = [];
+    $.each( str.split(","), function( index, value ){
+        params.push({ name:"allowedIngredient[]", value:$.trim(value) });
+    });
+    return params;
+}
+
+/**
+ * render search results
+ */
+function render(data) {
+    if(!data) return;
+
+    var r = $('#result')
+        // display attribution
+        .html(data.attribution.html)
+        .append("<br/>")
+    if(data.matches) {
+        var list = $("<ul>");
+        list.css({ listStyle: "none", margin:"0", padding:"0" });
+        $.each( data.matches, function( index, value ){
+            //sum += value;
+            var recipe = $("<li>");
+            $(recipe)
+                .css({ clear: "both", marginTop: "1em" })
+                .append($("<img>")
+                    .attr({ src: value.smallImageUrls[0] })
+                    .css({ "float": "left" })
+                )
+                .append("<a href='" + (value.id ? "http://www.yummly.com/recipe/" + value.id : "#" ) + "' target='_blank'>" + value.recipeName + "</a>")
+                .append("<br/>")
+                .append("by " + value.sourceDisplayName)
+                .append("<br/>")
+                .append(value.ingredients.join(" | "));
+            $(list).append(recipe);
+        });
+        r.append(list);
+    }
+}
+</script>
+
+<style type="text/css">
+body {
+    width: 700px;
+    margin: 4em auto;
+    font-family: 'PT Sans', sans-serif;
+}
+
+.list {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    text-transform: capitalize;
+}
+
+.list li {
+    display: inline-block;
+    float: left;
+    width: 100px;
+    height: 100px;
+    margin-right: 2em;
+    margin-bottom: 2em;
+}
+
+.list li img {
+    display: block;
+    max-width: 100%;
+    margin-bottom: 1em;
+}
+
+input[type="submit"] {
+    clear:both;
+    display: block;
+    margin-top: 2em;
+    width: 200px;
+    background: #77cc33;
+    color: white;
+    border: none;
+    padding: 1em 2em;
+    font-size: 1.1rem;
+}
+
+.cf:before, .cf:after {
+    content: " "; /* 1 */
+    display: table; /* 2 */
+}
+
+.cf:after {
+    clear: both;
+}
+
+/**
+ * For IE 6/7 only
+ * Include this rule to trigger hasLayout and contain floats.
+ */
+.cf {
+    *zoom: 1;
+}
+
+</style>
+</head>
+<body>
+<h1>simpledi.sh</h1>
+<form id="searchform" action="">
+    <input type="hidden" name="_app_id" value="YOUR_APP_ID"/>
+    <input type="hidden" name="_app_key" value="YOUR_APP_KEY"/>
+    <!-- label for="ingredients">Ingredients</label>
+    <input type="text" id="ingredients" name="q" value="kale, onion"/ -->
+    <ul class="list cf"></ul>
+    <input type="submit" value="Search Recipes"/>
+</form>
+<div id="result"></div>
+</body>
+</html>
